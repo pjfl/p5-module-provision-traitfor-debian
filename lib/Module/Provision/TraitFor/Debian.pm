@@ -2,12 +2,12 @@ package Module::Provision::TraitFor::Debian;
 
 use 5.010001;
 use namespace::autoclean;
-use version; our $VERSION = qv( sprintf '0.1.%d', q$Rev: 2 $ =~ /\d+/gmx );
+use version; our $VERSION = qv( sprintf '0.1.%d', q$Rev: 3 $ =~ /\d+/gmx );
 
-use Class::Usul::Constants  qw( NUL OK PREFIX SPC TRUE );
+use Class::Usul::Constants  qw( EXCEPTION_CLASS NUL OK PREFIX SPC TRUE );
 use Class::Usul::File;
-use Class::Usul::Functions  qw( ensure_class_loaded io is_arrayref
-                                squeeze throw trim );
+use Class::Usul::Functions  qw( ensure_class_loaded io
+                                is_arrayref squeeze throw trim );
 use Class::Usul::Types      qw( HashRef NonEmptySimpleStr Object );
 use Debian::Control;
 use Debian::Control::Stanza::Binary;
@@ -18,53 +18,39 @@ use English                 qw( -no_match_vars );
 use File::DataClass::Types  qw( Path );
 use File::ShareDir;
 use Text::Format;
+use Unexpected::Functions   qw( PathNotFound );
 use Moo::Role;
 
 requires qw( appldir config distname dist_version
-             get_package_meta info _license_keys run_cmd );
+             info license_keys load_meta run_cmd );
 
-has 'ctrldir'        => is => 'lazy', isa => Path, coerce => TRUE,
-   builder           => sub { $_[ 0 ]->appldir->catdir( 'var', 'etc' ) };
+has 'ctrldir'      => is => 'lazy', isa => Path, coerce => TRUE,
+   builder         => sub { $_[ 0 ]->appldir->catdir( 'var', 'etc' ) };
 
-has 'debconf_path'   => is => 'lazy', isa => Path, coerce => TRUE,
-   builder           => sub { $_[ 0 ]->appldir->catfile( '.provision.json' ) };
+has 'debconf_path' => is => 'lazy', isa => Path, coerce => TRUE,
+   builder         => sub { $_[ 0 ]->appldir->catfile( '.provision.json' ) };
 
-has 'debconfig'      => is => 'lazy', isa => HashRef, builder => sub {
+has 'debconfig'    => is => 'lazy', isa => HashRef, builder => sub {
    $_[ 0 ]->debconf_path->exists or return {};
    Class::Usul::File->data_load( paths => [ $_[ 0 ]->debconf_path ] ) };
 
-has 'dh_format_spec' => is => 'lazy', isa => NonEmptySimpleStr, builder => sub {
-   $_[ 0 ]->debconfig->{dh_format_spec} // 'Format-Specification: http://svn.debian.org/wsvn/dep/web/deps/dep5.mdwn?op=file&rev=135' };
+has 'dh_share_dir' => is => 'lazy', isa => Path, coerce => TRUE,
+   builder         => sub { File::ShareDir::dist_dir( 'DhMakePerl' ) };
 
-has 'dh_share_dir'   => is => 'lazy', isa => Path, coerce => TRUE,
-   builder           => sub { File::ShareDir::dist_dir( 'DhMakePerl' ) };
+has 'dh_ver'       => is => 'lazy', isa => NonEmptySimpleStr,
+   builder         => sub { $_[ 0 ]->debconfig->{dh_ver} // '7' };
 
-has 'dh_stdversion'  => is => 'lazy', isa => NonEmptySimpleStr,
-   builder           => sub { $_[ 0 ]->debconfig->{dh_stdversion} // '3.9.1' };
-
-has 'dh_ver'         => is => 'lazy', isa => NonEmptySimpleStr,
-   builder           => sub { $_[ 0 ]->debconfig->{dh_ver} // '7' };
-
-has 'dh_ver_extn'    => is => 'lazy', isa => NonEmptySimpleStr,
-   builder           => sub { $_[ 0 ]->debconfig->{dh_ver_extn} // '-1' };
-
-has 'install_base'   => is => 'lazy', isa => Path, builder => sub {
-   $_[ 0 ]->path_prefix->catdir
+has 'install_base' => is => 'lazy', isa => Path, coerce => TRUE,
+   builder => sub { $_[ 0 ]->path_prefix->catdir
       ( (lc $_[ 0 ]->distname), 'v'.$_[ 0 ]->short_ver.'p'.$_[ 0 ]->phase ) };
 
-has 'path_prefix'    => is => 'lazy', isa => Path, coerce => TRUE,
-   builder           => sub { $_[ 0 ]->debconfig->{path_prefix} // PREFIX };
+has 'path_prefix'  => is => 'lazy', isa => Path, coerce => TRUE,
+   builder         => sub { $_[ 0 ]->debconfig->{path_prefix} // PREFIX };
 
-has 'permalink'      => is => 'lazy', isa => NonEmptySimpleStr, builder => sub {
-   $_[ 0 ]->debconfig->{permalink} // 'https:://metacpan.org/release' };
+has 'phase'        => is => 'lazy', isa => NonEmptySimpleStr,
+   builder         => sub { $_[ 0 ]->debconfig->{phase} // '1' };
 
-has 'phase'          => is => 'lazy', isa => NonEmptySimpleStr, builder => sub {
-   $_[ 0 ]->debconfig->{phase} // '1' };
-
-has 'rules_file'     => is => 'lazy', isa => NonEmptySimpleStr, builder => sub {
-   $_[ 0 ]->debconfig->{rules_file} // 'rules.dh7.tiny' };
-
-has 'short_ver'      => is => 'lazy', isa => NonEmptySimpleStr, builder => sub {
+has 'short_ver'    => is => 'lazy', isa => NonEmptySimpleStr, builder => sub {
    (my $v = $_[ 0 ]->dist_version) =~ s{ \. \d+ \z }{}mx; $v };
 
 my $_bin_file = sub {
@@ -108,7 +94,10 @@ my $_debian_file = sub {
 };
 
 my $_get_homepage = sub {
-   return sprintf '%s/%s/', $_[ 0 ]->permalink, $_[ 0 ]->distname;
+   my $link = $_[ 0 ]->debconfig->{permalink}
+           // 'https:://metacpan.org/release';
+
+   return sprintf '%s/%s/', $link, $_[ 0 ]->distname;
 };
 
 my $_get_maintainer = sub {
@@ -142,8 +131,8 @@ my $_postrm_content = sub {
    # TODO: Add the triggering of the reinstallation of the previous version
    my $cmd  = $self->$_abs_prog_path( $debconf->{uninstall_cmd} );
    my $subd = $self->install_base->basename;
-   my $appd = $self->install_base->dirname;
-   my $papd = $appd->dirname;
+   my $appd = $self->install_base->parent;
+   my $papd = $appd->parent;
 
    length $appd < 2 and throw "Insane uninstall directory: ${appd}";
    $subd !~ m{ v \d+ \. \d+ p \d+ }mx
@@ -168,10 +157,15 @@ my $_shell_script = sub {
 my $_create_debian_changelog = sub {
    my ($self, $control) = @_;
 
-   my $io = $self->$_debian_file( 'changelog' ); my $src = $control->source;
+   my $dh_ver_extn = $self->debconfig->{dh_ver_extn} // '-1';
+   my $distro      = $self->debconfig->{distribution_type} // 'unstable';
+   my $urgency     = $self->debconfig->{urgency} // 'low';
+   my $io          = $self->$_debian_file( 'changelog' );
+   my $src         = $control->source;
 
-   $io->print( sprintf "%s (%s) unstable; urgency=low\n\n",
-               $src->Source, $self->dist_version.$self->dh_ver_extn );
+   $io->print( sprintf "%s (%s) %s; urgency=%s\n\n",
+               $src->Source, $self->dist_version.$dh_ver_extn,
+               $distro, $urgency );
    $io->print( "  * Initial Release.\n\n" );
    $io->print( sprintf " -- %s  %s\n", $src->Maintainer, email_date( time ) );
    return;
@@ -182,14 +176,14 @@ my $_create_debian_copyright = sub {
 
    my $year       = 1900 + (localtime)[ 5 ];
    my $maintainer = $control->source->Maintainer;
-   my $licenses   = $self->get_package_meta( $self->ctrldir )->licenses;
-   my $license    = $self->_license_keys->{ $licenses->[ 0 ] }
+   my $licenses   = [ $self->load_meta( $self->ctrldir )->licenses ];
+   my $license    = $self->license_keys->{ $licenses->[ 0 ] }
       or throw 'Unknown copyright license';
    my %fields     = ( Name       => $self->distname,
                       Maintainer => $maintainer,
                       Source     => $self->$_get_homepage );
 
-   push @res, $self->dh_format_spec;
+   push @res, $self->debconfig->{dh_format_spec} // 'Format-Specification: http://svn.debian.org/wsvn/dep/web/deps/dep5.mdwn?op=file&rev=135';
 
    for (grep { defined $fields{ $_ } } keys %fields) {
       push @res, "$_: ".$fields{ $_ };
@@ -233,14 +227,14 @@ my $_create_debian_rules = sub {
    my $self   = shift;
    my $path   = $self->$_debian_file( 'rules' );
    my $rules  = Debian::Rules->new( $path->name );
-   my $source = $self->dh_share_dir->catfile( $self->rules_file );
+   my $file   = $self->debconfig->{rules_file} // 'rules.dh7.tiny';
+   my $source = $self->dh_share_dir->catfile( $file );
 
-   $source->exists or throw 'Path [_1] does not exist', [ $source ];
+   $source->exists or throw PathNotFound, [ $source ];
    $self->info( 'Using rules '.$source->basename ); $rules->read( $source );
 
    my @lines = @{ $rules->lines }; my $line1 = shift @lines;
 
-   # Stop dh from re-running perl Build.PL and ./Build
    unshift @lines, $line1, "\n",
       "override_dh_auto_configure:\n",
       "\tdh_auto_configure -- install_base=".$self->install_base."\n", "\n",
@@ -317,7 +311,7 @@ my $_set_debian_package_defaults = sub {
    $src->Priority         ( 'optional' );
    $src->Homepage         ( $self->$_get_homepage );
    $src->Maintainer       ( $self->$_get_maintainer );
-   $src->Standards_Version( $self->dh_stdversion );
+   $src->Standards_Version( $self->debconfig->{dh_stdversion} // '3.9.1' );
 
    my $binval = $self->$_set_debian_binary_data( $control, $pkgname, 'any' );
 
@@ -386,9 +380,12 @@ my $_create_debian_package = sub {
 
 sub build : method {
    my $self = shift;
-   my $dir  = 'local';
+   my $dir  = $self->debconfig->{localdir} // 'local';
    my $args = { err => 'stderr', out => 'stdout' };
 
+#   $ENV{BUILDING_DEBIAN} = TRUE; # Was in original
+#   $ENV{DEB_BUILD_OPTIONS} = 'nocheck';
+#   $ENV{DEVEL_COVER_NO_COVERAGE} = TRUE;     # Devel::Cover
    $self->run_cmd( [ 'cpanm', '-L', $dir, 'local::lib' ], $args );
    delete @ENV{ qw( IFS CDPATH ENV BASH_ENV ) }; # App::Ack issue 493
    $self->run_cmd( [ 'cpanm', '-L', $dir, '--installdeps', '.' ], $args );
@@ -412,12 +409,26 @@ __END__
 
 =head1 Name
 
-Module::Provision::TraitFor::Debian - One-line description of the modules purpose
+Module::Provision::TraitFor::Debian - Build a Debian installable archive of an application
 
 =head1 Synopsis
 
-   use Module::Provision::TraitFor::Debian;
-   # Brief but working code examples
+   sub BUILD {
+      my $self = shift;
+
+      for my $plugin (@{ $self->plugins }) {
+         if (first_char $plugin eq '+') { $plugin = substr $plugin, 1 }
+         else { $plugin = "Module::Provision::TraitFor::${plugin}" }
+
+         try   { Role::Tiny->apply_roles_to_object( $self, $plugin ) }
+         catch {
+            $_ =~ m{ \ACan\'t \s+ locate }mx or throw $_;
+            throw 'Module [_1] not found in @INC', [ $plugin ];
+         };
+      }
+
+      return;
+   }
 
 =head1 Description
 

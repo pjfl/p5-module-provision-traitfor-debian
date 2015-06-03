@@ -20,12 +20,13 @@ my $prereqs  = {
     'version' => '0.88'
   },
   'requires' => {
-    'Alt::DhMakePerl::installable' => 'v0.1.1',
-    'Class::Usul' => 'v0.55.0',
+    'Alt::DhMakePerl::installable' => 'v0.1.0',
+    'Class::Usul' => 'v0.62.0',
     'Email::Date::Format' => '1.005',
     'File::DataClass' => 'v0.55.0',
     'File::ShareDir' => '1.102',
-    'Moo' => '1.006000',
+    'Module::Provision' => 'v0.39.0',
+    'Moo' => '2.000001',
     'Text::Format' => '0.59',
     'namespace::autoclean' => '0.22',
     'perl' => '5.010001'

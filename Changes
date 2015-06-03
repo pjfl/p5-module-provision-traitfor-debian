@@ -1,5 +1,6 @@
 Revision history for Module::Provision::TraitFor::Debian
 
+          - Updated prereqs
           - Added public repository
           - First working copy
 

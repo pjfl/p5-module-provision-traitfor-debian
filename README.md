@@ -4,6 +4,7 @@ Module::Provision::TraitFor::Debian - Build a Debian installable archive of an a
 
 # Synopsis
 
+    # In Module::Provision
     sub BUILD {
        my $self = shift;
 
@@ -20,6 +21,9 @@ Module::Provision::TraitFor::Debian - Build a Debian installable archive of an a
 
        return;
     }
+
+    # From the command line in an applications root directory
+    module_provision -MDebian build
 
 # Description
 
@@ -42,7 +46,27 @@ Defines the following attributes;
 - `debconfig`
 
     A hash reference load from the contents of ["debconf\_path"](#debconf_path). The hash reference
-    will be empty if the file does not exist
+    will be empty if the file does not exist. Defines the following attributes;
+
+    - `debian_depends`
+
+        An array reference. List of dependent packages
+
+    - `debian_build_depends`
+
+        An array reference. List of build dependent packages
+
+    - `debian_build_depends_indep`
+
+        An array reference. List of build dependent independent packages
+
+    - `post_install_cmd`
+
+        The command to execute once the unpacking of files is complete
+
+    - `uninstall_cmd`
+
+        The command to execute when uninstallling the application
 
 - `dh_share_dir`
 

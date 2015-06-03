@@ -2,7 +2,7 @@ package Module::Provision::TraitFor::Debian;
 
 use 5.010001;
 use namespace::autoclean;
-use version; our $VERSION = qv( sprintf '0.1.%d', q$Rev: 4 $ =~ /\d+/gmx );
+use version; our $VERSION = qv( sprintf '0.1.%d', q$Rev: 5 $ =~ /\d+/gmx );
 
 use Class::Usul::Constants  qw( EXCEPTION_CLASS NUL OK PREFIX SPC TRUE );
 use Class::Usul::File;
@@ -413,6 +413,7 @@ Module::Provision::TraitFor::Debian - Build a Debian installable archive of an a
 
 =head1 Synopsis
 
+   # In Module::Provision
    sub BUILD {
       my $self = shift;
 
@@ -429,6 +430,9 @@ Module::Provision::TraitFor::Debian - Build a Debian installable archive of an a
 
       return;
    }
+
+   # From the command line in an applications root directory
+   module_provision -MDebian build
 
 =head1 Description
 
@@ -453,7 +457,31 @@ to F<.provision.json> in the application root directory
 =item C<debconfig>
 
 A hash reference load from the contents of L</debconf_path>. The hash reference
-will be empty if the file does not exist
+will be empty if the file does not exist. Defines the following attributes;
+
+=over 3
+
+=item C<debian_depends>
+
+An array reference. List of dependent packages
+
+=item C<debian_build_depends>
+
+An array reference. List of build dependent packages
+
+=item C<debian_build_depends_indep>
+
+An array reference. List of build dependent independent packages
+
+=item C<post_install_cmd>
+
+The command to execute once the unpacking of files is complete
+
+=item C<uninstall_cmd>
+
+The command to execute when uninstallling the application
+
+=back
 
 =item C<dh_share_dir>
 

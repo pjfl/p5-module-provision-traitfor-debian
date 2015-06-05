@@ -2,7 +2,7 @@ package Module::Provision::TraitFor::Debian;
 
 use 5.010001;
 use namespace::autoclean;
-use version; our $VERSION = qv( sprintf '0.1.%d', q$Rev: 5 $ =~ /\d+/gmx );
+use version; our $VERSION = qv( sprintf '0.1.%d', q$Rev: 6 $ =~ /\d+/gmx );
 
 use Class::Usul::Constants  qw( EXCEPTION_CLASS NUL OK PREFIX SPC TRUE );
 use Class::Usul::File;
@@ -21,8 +21,8 @@ use Text::Format;
 use Unexpected::Functions   qw( PathNotFound );
 use Moo::Role;
 
-requires qw( appldir config distname dist_version
-             info license_keys load_meta run_cmd );
+requires qw( appldir config distname dist_version info
+             license_keys load_meta module_metadata run_cmd );
 
 has 'ctrldir'      => is => 'lazy', isa => Path, coerce => TRUE,
    builder         => sub { $_[ 0 ]->appldir->catdir( 'var', 'etc' ) };
@@ -68,9 +68,11 @@ my $_main_dir = sub {
 };
 
 my $_add_debian_depends = sub {
-   my ($self, $control) = @_; my $bin = $control->binary->Values( 0 );
+   my ($self, $control) = @_;
 
-   my $debconf = $self->debconfig; my $src = $control->source;
+   my $src     = $control->source;
+   my $bin     = $control->binary->{ $src->Source };
+   my $debconf = $self->debconfig;
 
    exists $debconf->{debian_depends}
       and $bin->Depends->add( @{ $debconf->{debian_depends} } );
@@ -257,46 +259,45 @@ my $_create_debian_watch = sub {
 my $_discover_debian_utility_deps = sub {
    my ($self, $control, $rules) = @_;
 
-   my $deps = $control->source->Build_Depends;
-   my $bin  = $control->binary->Values( 0 );
-
-   $deps->remove( 'quilt', 'debhelper' );
+   my $src = $control->source; my $deps = $src->Build_Depends;
 
    # Start with the minimum
+   $deps->remove( 'quilt', 'debhelper' );
    $deps->add( Debian::Dependency->new( 'debhelper', $self->dh_ver ) );
 
    if ($control->is_arch_dep) { $deps->add( 'perl' ) }
-   else { $control->source->Build_Depends_Indep->add( 'perl' ) }
+   else { $src->Build_Depends_Indep->add( 'perl' ) }
 
+   my $bin = $control->binary->{ $src->Source }; my $bin_deps = $bin->Depends;
+
+   $control->is_arch_dep or $bin_deps += '${shlibs:Depends}';
    # Some mandatory dependencies
-   my $bin_deps = $bin->Depends;
-
-   not $control->is_arch_dep and $bin_deps += '${shlibs:Depends}';
-
    $bin_deps += '${misc:Depends}, ${perl:Depends}';
    return;
 };
 
 my $_set_debian_binary_data = sub {
-   my ($self, $control, $pkgname, $arch) = @_; my $bin = $control->binary;
+   my ($self, $control, $arch) = @_; my $bin_t = $control->binary_tie;
 
-   $bin->FETCH( $pkgname )
-      or $bin->Push( $pkgname => Debian::Control::Stanza::Binary->new( {
+   my $src = $control->source; my $pkgname = $src->Source;
+
+   $control->binary->{ $pkgname }
+      or $bin_t->Push( $pkgname => Debian::Control::Stanza::Binary->new( {
          Package => $pkgname } ) );
 
-   my $binval = $bin->Values( 0 ); $binval->Architecture( $arch );
+   my $bin = $control->binary->{ $pkgname }; $bin->Architecture( $arch );
 
    my $abstract = $self->module_abstract or throw 'No dist abstract';
 
-   $binval->short_description( $abstract );
+   $bin->short_description( $abstract );
 
    my $desc = $self->module_metadata->pod( 'Description' );
 
    $desc and $desc =~ s{ L\< ([^\>]+) \> }{$1}gmx
          and $desc =~ s{ [\n] }{ }gmx
-         and $binval->long_description( trim squeeze $desc );
+         and $bin->long_description( trim squeeze $desc );
 
-   return $binval;
+   return $bin;
 };
 
 my $_set_debian_package_defaults = sub {
@@ -313,12 +314,13 @@ my $_set_debian_package_defaults = sub {
    $src->Maintainer       ( $self->$_get_maintainer );
    $src->Standards_Version( $self->debconfig->{dh_stdversion} // '3.9.1' );
 
-   my $binval = $self->$_set_debian_binary_data( $control, $pkgname, 'any' );
+   my $bin = $self->$_set_debian_binary_data( $control, $pkgname, 'any' );
 
    $self->info( sprintf "Found %s %s (%s arch=%s)\n",
                 $self->distname, $self->dist_version,
-                $pkgname, $binval->Architecture );
+                $pkgname, $bin->Architecture );
    $self->info( sprintf "Maintainer %s\n", $src->Maintainer );
+
    return;
 };
 

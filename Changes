@@ -1,5 +1,6 @@
 Revision history for Module::Provision::TraitFor::Debian
 
+          - Repaired Debian::Control's tied hash
           - Updated prereqs
           - Added public repository
           - First working copy

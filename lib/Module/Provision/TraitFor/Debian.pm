@@ -2,7 +2,7 @@ package Module::Provision::TraitFor::Debian;
 
 use 5.010001;
 use namespace::autoclean;
-use version; our $VERSION = qv( sprintf '0.1.%d', q$Rev: 7 $ =~ /\d+/gmx );
+use version; our $VERSION = qv( sprintf '0.1.%d', q$Rev: 8 $ =~ /\d+/gmx );
 
 use Archive::Tar::Constant  qw( COMPRESS_GZIP );
 use Class::Usul::Constants  qw( OK );
@@ -98,81 +98,7 @@ Build a Debian installable archive of an application
 
 =head1 Configuration and Environment
 
-Defines the following attributes;
-
-=over 3
-
-=item C<ctrldir>
-
-Path to the directory containing the meta data file F<META.json>. Defaults to
-F<var/etc> relative to the application root directory
-
-=item C<debconf_path>
-
-Path to the file containing application specific Debian meta data. Defaults
-to F<.provision.json> in the application root directory
-
-=item C<debconfig>
-
-A hash reference load from the contents of L</debconf_path>. The hash reference
-will be empty if the file does not exist. Defines the following attributes;
-
-=over 3
-
-=item C<debian_depends>
-
-An array reference. List of dependent packages
-
-=item C<debian_build_depends>
-
-An array reference. List of build dependent packages
-
-=item C<debian_build_depends_indep>
-
-An array reference. List of build dependent independent packages
-
-=item C<post_install_cmd>
-
-The command to execute once the unpacking of files is complete
-
-=item C<uninstall_cmd>
-
-The command to execute when uninstallling the application
-
-=back
-
-=item C<dh_share_dir>
-
-Path to the C<DhMakePerl> shared distribution directory
-
-=item C<dh_ver>
-
-The Debian helper version number. A non empty simple string which defaults to
-C<7>. The value from the L</debconfig> hash reference will be used in
-preference if it exists
-
-=item C<install_base>
-
-Path where the application will be installed. Constructed from L</path_prefix>,
-C<distname>, L</short_ver>, and L</phase>, e.g. F</opt/distname/v1.0p1>
-
-=item C<path_prefix>
-
-Path to default installation directory prefix which default to
-F</opt>. The value from the L</debconfig> hash reference will be used in
-preference if it exists
-
-=item C<phase>
-
-A positive integer that default to C<1>. The phase number indicates the
-purpose of the installation, e.g. 1 = live, 2 = testing, 3 = development
-
-=item C<short_ver>
-
-A non empty simple string which defaults to the distributions major and
-minor version numbers
-
-=back
+Defines no attributes
 
 =head1 Subroutines/Methods
 
@@ -190,23 +116,11 @@ None
 
 =over 3
 
+=item L<Archive::Tar>
+
 =item L<Class::Usul>
 
-=item L<Debian::Control>
-
-=item L<Debian::Dependency>
-
-=item L<Debian::Rules>
-
-=item L<Email::Date::Format>
-
-=item L<File::DataClass>
-
-=item L<File::ShareDir>
-
-=item L<Text::Format>
-
-=item L<Unexpected>
+=item L<Module::Provision>
 
 =item L<Moo>
 

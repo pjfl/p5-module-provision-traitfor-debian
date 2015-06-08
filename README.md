@@ -31,73 +31,7 @@ Build a Debian installable archive of an application
 
 # Configuration and Environment
 
-Defines the following attributes;
-
-- `ctrldir`
-
-    Path to the directory containing the meta data file `META.json`. Defaults to
-    `var/etc` relative to the application root directory
-
-- `debconf_path`
-
-    Path to the file containing application specific Debian meta data. Defaults
-    to `.provision.json` in the application root directory
-
-- `debconfig`
-
-    A hash reference load from the contents of ["debconf\_path"](#debconf_path). The hash reference
-    will be empty if the file does not exist. Defines the following attributes;
-
-    - `debian_depends`
-
-        An array reference. List of dependent packages
-
-    - `debian_build_depends`
-
-        An array reference. List of build dependent packages
-
-    - `debian_build_depends_indep`
-
-        An array reference. List of build dependent independent packages
-
-    - `post_install_cmd`
-
-        The command to execute once the unpacking of files is complete
-
-    - `uninstall_cmd`
-
-        The command to execute when uninstallling the application
-
-- `dh_share_dir`
-
-    Path to the `DhMakePerl` shared distribution directory
-
-- `dh_ver`
-
-    The Debian helper version number. A non empty simple string which defaults to
-    `7`. The value from the ["debconfig"](#debconfig) hash reference will be used in
-    preference if it exists
-
-- `install_base`
-
-    Path where the application will be installed. Constructed from ["path\_prefix"](#path_prefix),
-    `distname`, ["short\_ver"](#short_ver), and ["phase"](#phase), e.g. `/opt/distname/v1.0p1`
-
-- `path_prefix`
-
-    Path to default installation directory prefix which default to
-    `/opt`. The value from the ["debconfig"](#debconfig) hash reference will be used in
-    preference if it exists
-
-- `phase`
-
-    A positive integer that default to `1`. The phase number indicates the
-    purpose of the installation, e.g. 1 = live, 2 = testing, 3 = development
-
-- `short_ver`
-
-    A non empty simple string which defaults to the distributions major and
-    minor version numbers
+Defines no attributes
 
 # Subroutines/Methods
 
@@ -113,15 +47,9 @@ None
 
 # Dependencies
 
+- [Archive::Tar](https://metacpan.org/pod/Archive::Tar)
 - [Class::Usul](https://metacpan.org/pod/Class::Usul)
-- [Debian::Control](https://metacpan.org/pod/Debian::Control)
-- [Debian::Dependency](https://metacpan.org/pod/Debian::Dependency)
-- [Debian::Rules](https://metacpan.org/pod/Debian::Rules)
-- [Email::Date::Format](https://metacpan.org/pod/Email::Date::Format)
-- [File::DataClass](https://metacpan.org/pod/File::DataClass)
-- [File::ShareDir](https://metacpan.org/pod/File::ShareDir)
-- [Text::Format](https://metacpan.org/pod/Text::Format)
-- [Unexpected](https://metacpan.org/pod/Unexpected)
+- [Module::Provision](https://metacpan.org/pod/Module::Provision)
 - [Moo](https://metacpan.org/pod/Moo)
 
 # Incompatibilities

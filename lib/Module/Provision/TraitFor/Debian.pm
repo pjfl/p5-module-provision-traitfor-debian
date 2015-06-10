@@ -2,7 +2,7 @@ package Module::Provision::TraitFor::Debian;
 
 use 5.010001;
 use namespace::autoclean;
-use version; our $VERSION = qv( sprintf '0.1.%d', q$Rev: 8 $ =~ /\d+/gmx );
+use version; our $VERSION = qv( sprintf '0.1.%d', q$Rev: 9 $ =~ /\d+/gmx );
 
 use Archive::Tar::Constant  qw( COMPRESS_GZIP );
 use Class::Usul::Constants  qw( OK );
@@ -11,23 +11,25 @@ use Moo::Role;
 
 requires qw( appldir chdir config run_cmd );
 
+my $make_localdir = sub {
+   my ($self, $dir) = @_; my $args = { err => 'stderr', out => 'stdout' };
+
+   $self->run_cmd( [ 'cpanm', '-L', "${dir}", 'local::lib' ], $args );
+   delete @ENV{ qw( IFS CDPATH ENV BASH_ENV ) }; # App::Ack issue 493
+   $self->run_cmd( [ 'cpanm', '-L', "${dir}", '--installdeps', '.' ], $args );
+
+   return;
+};
+
 my $make_localarc = sub {
-   my ($self, $localdir, $file) = @_; ensure_class_loaded 'Archive::Tar';
+   my ($self, $dir, $file) = @_; ensure_class_loaded 'Archive::Tar';
 
-   my $args = { err => 'stderr', out => 'stdout' }; my $cmd;
+   $dir->exists or $self->$make_localdir( $dir );
 
-   unless ($localdir->exists) {
-      $cmd = [ 'cpanm', '-L', "${localdir}", 'local::lib' ];
-      $self->run_cmd( $cmd, $args );
-      delete @ENV{ qw( IFS CDPATH ENV BASH_ENV ) }; # App::Ack issue 493
-      $cmd = [ 'cpanm', '-L', "${localdir}", '--installdeps', '.' ];
-      $self->run_cmd( $cmd, $args );
-   }
+   my $arc = Archive::Tar->new; my $pattern = sub { $_ !~ m{ [/\\] \. }mx };
 
-   my $arc = Archive::Tar->new; my $filter = sub { $_ !~ m{ [/\\] \. }mx };
-
-   for my $path ($localdir->filter( $filter )->deep->all_files) {
-      $arc->add_files( $path->abs2rel( $localdir->parent ) );
+   for my $path ($dir->filter( $pattern )->deep->all_files) {
+      $arc->add_files( $path->abs2rel( $dir->parent ) );
    }
 
    $self->info( 'Generating local tarball' );
@@ -40,7 +42,7 @@ sub build : method {
    my $appldir  = $self->appldir;
    my $args     = { err => 'stderr', out => 'stdout' };
    my $localarc = $appldir->parent->catfile( 'local.tgz' );
-   my $localdir = $appldir->catdir( $self->config->{localdir} // 'local' );
+   my $localdir = $appldir->catdir( $self->config->localdir );
    my $builddir = $self->distname.'-'.$self->dist_version;
 
    $ENV{DEB_BUILD_OPTIONS} = 'nocheck';

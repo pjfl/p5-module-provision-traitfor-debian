@@ -2,7 +2,7 @@ package Module::Provision::TraitFor::Debian;
 
 use 5.010001;
 use namespace::autoclean;
-use version; our $VERSION = qv( sprintf '0.1.%d', q$Rev: 9 $ =~ /\d+/gmx );
+use version; our $VERSION = qv( sprintf '0.1.%d', q$Rev: 10 $ =~ /\d+/gmx );
 
 use Archive::Tar::Constant  qw( COMPRESS_GZIP );
 use Class::Usul::Constants  qw( OK );
